@@ -1,0 +1,155 @@
+{
+  "name": "GHL Contact Sync",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "contacts",
+        "operation": "getAll",
+        "jsonParameters": true,
+        "options": {
+          "limit": 50,
+          "query": "={{$parameter[\"query\"] || ''}}"
+        }
+      },
+      "name": "GHL Get Contacts",
+      "type": "n8n-nodes-base.goHighLevel",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "goHighLevelApi": "ghl-api-credentials"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter and transform contacts\nreturn $input.all().map(contact => ({\n  id: contact.id,\n  name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),\n  email: contact.email || null,\n  phone: contact.phone || null,\n  tags: contact.tags || [],\n  lastActivity: contact.lastActivity || null,\n  customFields: contact.customFields || {},\n  createdAt: contact.createdAt,\n  updatedAt: contact.updatedAt\n}));"
+      },
+      "name": "Process Contacts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "schema": "={{$node[\"Process Contacts\"].json}}",
+        "options": {}
+      },
+      "name": "PostgreSQL Insert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "credentials": {
+        "postgres": "pg-credentials"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare for CSV export\nconst headers = ['ID', 'Name', 'Email', 'Phone', 'Tags', 'Last Activity', 'Created At'];\nconst rows = $input.all().map(contact => [\n  contact.id,\n  contact.name,\n  contact.email,\n  contact.phone,\n  contact.tags.join(', '),\n  contact.lastActivity,\n  contact.createdAt\n]);\n\nreturn {\n  json: {\n    csv: [headers, ...rows].map(row => row.join(',')).join('\\n')\n  }\n};"
+      },
+      "name": "Format CSV",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "filePath": "/data/ghl_contacts_export_{{Date.now()}}.csv",
+        "options": {}
+      },
+      "name": "Save to File",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "channel": "={{$parameter[\"channel\"] || 'sync-logs'}}",
+        "text": "Successfully synced {{$input.all().length}} contacts from GoHighLevel at {{new Date().toISOString()}}",
+        "options": {}
+      },
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "slackApi": "slack-credentials"
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "GHL Get Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL Get Contacts": {
+      "main": [
+        [
+          {
+            "node": "Process Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Contacts": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL Insert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format CSV": {
+      "main": [
+        [
+          {
+            "node": "Save to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL Insert": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "tags": [],
+  "id": "3"
+    }
