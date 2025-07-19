@@ -1,0 +1,216 @@
+// File: lead_management.json
+// Path: /n8n-automation-demo/workflows/lead_management.json
+// Description: Main workflow for lead capture, processing, and multi-channel follow-up
+
+{
+  "name": "Lead Management Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "webhookId": "lead-capture-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Validate lead data\nconst { name, email, phone, source } = $input.all()[0].json;\n\nif (!email && !phone) {\n  throw new Error('Either email or phone must be provided');\n}\n\nreturn {\n  json: {\n    name,\n    email,\n    phone,\n    source,\n    isValid: true,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Validate Lead",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "contacts",
+        "operation": "create",
+        "jsonParameters": true,
+        "additionalFields": {},
+        "options": {}
+      },
+      "name": "GoHighLevel Create Contact",
+      "type": "n8n-nodes-base.goHighLevel",
+      "typeVersion": 1,
+      "position": [
+        850,
+        200
+      ],
+      "credentials": {
+        "goHighLevelApi": "ghl-api-credentials"
+      }
+    },
+    {
+      "parameters": {
+        "event": "New Lead",
+        "additionalFields": {},
+        "options": {}
+      },
+      "name": "GoHighLevel Add Tag",
+      "type": "n8n-nodes-base.goHighLevel",
+      "typeVersion": 1,
+      "position": [
+        850,
+        400
+      ],
+      "credentials": {
+        "goHighLevelApi": "ghl-api-credentials"
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "credentialType": "twilioApi",
+        "from": "{{$env.TWILIO_PHONE_NUMBER}}",
+        "to": "={{$node[\"Validate Lead\"].json[\"phone\"]}}",
+        "body": "Hi {{$node[\"Validate Lead\"].json[\"name\"]}}, thanks for your interest! We'll contact you shortly."
+      },
+      "name": "Send SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "to": "={{$node[\"Validate Lead\"].json[\"email\"]}}",
+        "subject": "Thank you for contacting us",
+        "text": "Hi {{$node[\"Validate Lead\"].json[\"name\"]}},\n\nWe've received your inquiry and will get back to you within 24 hours.\n\nBest regards,\nThe Team",
+        "additionalFields": {}
+      },
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "voiceProvider": "twilio",
+        "to": "={{$node[\"Validate Lead\"].json[\"phone\"]}}",
+        "message": "Hello {{$node[\"Validate Lead\"].json[\"name\"]}}, this is an automated message to confirm we received your inquiry. Press 1 to schedule a callback now or wait for our team to contact you.",
+        "options": {}
+      },
+      "name": "Voice AI Call",
+      "type": "n8n-nodes-base.voiceflow",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Lead": {
+      "main": [
+        [
+          {
+            "node": "GoHighLevel Create Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GoHighLevel Add Tag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GoHighLevel Create Contact": {
+      "main": [
+        [
+          {
+            "node": "Send SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GoHighLevel Add Tag": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS": {
+      "main": [
+        [
+          {
+            "node": "Voice AI Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Voice AI Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "tags": [],
+  "id": "1"
+}
