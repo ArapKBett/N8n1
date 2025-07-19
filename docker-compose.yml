@@ -1,0 +1,28 @@
+# File: docker-compose.yml
+# Path: /n8n-automation-demo/docker-compose.yml
+# Description: Local deployment configuration for n8n with persistent storage
+
+version: '3'
+
+services:
+  n8n:
+    image: n8nio/n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./.n8n:/home/node/.n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${ADMIN_PASSWORD}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+    networks:
+      - n8n_network
+
+networks:
+  n8n_network:
+    driver: bridge
