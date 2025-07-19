@@ -1,0 +1,160 @@
+{
+  "name": "Voice AI Integration",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "webhookId": "voice-ai-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Validate call data\nconst { phoneNumber, message, language } = $input.all()[0].json;\n\nif (!phoneNumber) {\n  throw new Error('Phone number is required');\n}\n\nreturn {\n  json: {\n    phoneNumber,\n    message: message || 'Hello, this is an automated call. How can we help you today?',\n    language: language || 'en-US',\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Validate Call Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "voiceProvider": "twilio",
+        "to": "={{$node[\"Validate Call Data\"].json[\"phoneNumber\"]}}",
+        "message": "={{$node[\"Validate Call Data\"].json[\"message\"]}}",
+        "language": "={{$node[\"Validate Call Data\"].json[\"language\"]}}",
+        "options": {}
+      },
+      "name": "Voiceflow Call",
+      "type": "n8n-nodes-base.voiceflow",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "credentials": {
+        "voiceflowApi": "voiceflow-credentials"
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Twilio Status Callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "webhookId": "twilio-callback"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process call results\nconst callData = $input.all()[0].json;\n\nlet status = 'unknown';\nlet duration = 0;\n\nif (callData.CallStatus) {\n  status = callData.CallStatus.toLowerCase();\n  duration = callData.CallDuration || 0;\n}\n\nreturn {\n  json: {\n    callSid: callData.CallSid,\n    status,\n    duration,\n    recordingUrl: callData.RecordingUrl || null,\n    digits: callData.Digits || null,\n    transcription: callData.TranscriptionText || null,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Process Call Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "resource": "contacts",
+        "operation": "update",
+        "contactId": "={{$node[\"GHL Find Contact\"].json[\"id\"]}}",
+        "jsonParameters": true,
+        "additionalFields": {
+          "customField": {
+            "voiceCallStatus": "={{$node[\"Process Call Results\"].json[\"status\"]}}",
+            "callDuration": "={{$node[\"Process Call Results\"].json[\"duration\"]}}"
+          }
+        },
+        "options": {}
+      },
+      "name": "GHL Update Contact",
+      "type": "n8n-nodes-base.goHighLevel",
+      "typeVersion": 1,
+      "position": [1450, 200],
+      "credentials": {
+        "goHighLevelApi": "ghl-api-credentials"
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Call Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Call Data": {
+      "main": [
+        [
+          {
+            "node": "Voiceflow Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voiceflow Call": {
+      "main": [
+        [
+          {
+            "node": "Twilio Status Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio Status Callback": {
+      "main": [
+        [
+          {
+            "node": "Process Call Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Call Results": {
+      "main": [
+        [
+          {
+            "node": "GHL Update Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "tags": [],
+  "id": "2"
+}
