@@ -1,7 +1,3 @@
-// File: lead_management.json
-// Path: /n8n-automation-demo/workflows/lead_management.json
-// Description: Main workflow for lead capture, processing, and multi-channel follow-up
-
 {
   "name": "Lead Management Automation",
   "nodes": [
